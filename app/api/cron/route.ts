@@ -1,15 +1,16 @@
-import Product from "@/lib/models/product.models";
-import { connectToDB } from "@/lib/mongoose"
-import { generateEmailBody, sendEmail } from "@/lib/nodemailer";
-import { scrapeAmazonProduct } from "@/lib/scraper";
-import { getAveragePrice, getEmailNotifType, getHighestPrice, getLowestPrice } from "@/lib/utils";
 import { NextResponse } from "next/server";
+
+import { getAveragePrice, getEmailNotifType, getHighestPrice, getLowestPrice } from "@/lib/utils";
+import { connectToDB } from "@/lib/mongoose"
+import Product from "@/lib/models/product.models";
+import { scrapeAmazonProduct } from "@/lib/scraper";
+import { generateEmailBody, sendEmail } from "@/lib/nodemailer";
 
 export const maxDuration = 10;
 export const dynamic = 'force-dynamic'
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         connectToDB();
 
@@ -22,7 +23,7 @@ export async function GET() {
             products.map(async (currentProduct) => {
                 const scrapedProduct = await scrapeAmazonProduct(currentProduct.url);
 
-                if(!scrapedProduct) throw new Error("No product found");
+                if(!scrapedProduct) return;
 
                 const updatedPriceHistory = [
                     ...currentProduct.priceHistory,
@@ -42,7 +43,7 @@ export async function GET() {
                   //Update Products in DB
                   const updatedProduct = await Product.findOneAndUpdate(
                     {
-                        url: product.url
+                        url: product.url,
                     },
                     product
                   );
@@ -53,7 +54,7 @@ export async function GET() {
                     currentProduct
                   );
 
-                  if(emailNotifType && updatedProduct.user.length > 0) {
+                  if(emailNotifType && updatedProduct.users.length > 0) {
                     const productInfo = {
                         title: updatedProduct.title,
                         url: updatedProduct.url,
@@ -77,6 +78,6 @@ export async function GET() {
             data: updatedProducts,
         });
     } catch (error) {
-        throw new Error(`Error in GET: ${error}`)
+        throw new Error(`Failed to get all products: ${error}`)
     }
 }
